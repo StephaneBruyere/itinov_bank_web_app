@@ -1,0 +1,151 @@
+import React, { useEffect, useState } from "react";
+import { Container, Nav, Navbar, Button } from "react-bootstrap";
+import keycloak from "./keycloak";
+
+interface Customer {
+  id: number;
+  name: string;
+  email: string;
+  accounts: Account[];
+}
+
+interface Account {
+  id: number;
+  number: string;
+  balance: number;
+}
+
+interface AppProps {
+  initialAuth: boolean;
+}
+
+const App: React.FC<AppProps> = ({ initialAuth }) => {
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [activeTab, setActiveTab] = useState<string>("");
+  const [isAuthenticated] = useState(initialAuth);
+
+  // Initialisation Keycloak **sans redirection automatique**
+  useEffect(() => {
+    if (isAuthenticated) {
+      const interval = setInterval(() => {
+        keycloak.updateToken(30).catch(() => keycloak.logout());
+      }, 60000);
+      return () => clearInterval(interval);
+    }
+  }, [isAuthenticated]);
+
+  // Chargement des données selon l'onglet actif
+  useEffect(() => {
+    if (activeTab === "customers") {
+      fetch("/api/public/customers")
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then(setCustomers)
+      .catch(console.error);
+    }
+
+    if (activeTab === "accounts") {
+
+    if (!isAuthenticated) {
+      keycloak.login();
+      return;
+    }
+
+    const fetchAccounts = async () => {
+      try {
+        // récupérer dynamiquement l'ID du customer connecté
+        const customerRes = await fetch("/api/customer", {
+          headers: { Authorization: `Bearer ${keycloak.token}` },
+        });
+        if (!customerRes.ok) throw new Error("Unauthorized");
+
+        const customerId: number = await customerRes.json();
+
+        // récupérer les comptes pour ce customerId
+        const accountsRes = await fetch(`/api/accounts/customer/${customerId}`, {
+          headers: { Authorization: `Bearer ${keycloak.token}` },
+        });
+        if (!accountsRes.ok) throw new Error("Unauthorized");
+
+        const accountsData = await accountsRes.json();
+        setAccounts(accountsData);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+
+      fetchAccounts();
+
+    }
+  }, [activeTab, isAuthenticated]);
+
+  return (
+    <>
+      <Navbar bg="dark" variant="dark" expand="lg" fixed="top">
+        <Container>
+          <Navbar.Brand>Bank App</Navbar.Brand>
+          <Nav className="me-auto">
+            <Nav.Link onClick={() => setActiveTab("customers")}>
+              Customers
+            </Nav.Link>
+            <Nav.Link onClick={() => setActiveTab("accounts")}>
+              Accounts
+            </Nav.Link>
+          </Nav>
+          <Nav>
+            {!isAuthenticated ? (
+              <Button variant="outline-light" onClick={() => keycloak.login()}>
+                Login
+              </Button>
+            ) : (
+              <>
+                <Navbar.Text className="me-2">
+                  Signed in as: {keycloak.tokenParsed?.preferred_username}
+                </Navbar.Text>
+                <Button
+                  variant="outline-warning"
+                  onClick={() => keycloak.logout()}
+                >
+                  Logout
+                </Button>
+              </>
+            )}
+          </Nav>
+        </Container>
+      </Navbar>
+
+      <Container>
+        {activeTab === "customers" && (
+          <>
+            <h3>Customers</h3>
+            <ul>
+              {customers.map((c) => (
+                <li key={c.id}>
+                  {c.id} - {c.name} ({c.email})
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+
+        {activeTab === "accounts" && isAuthenticated && (
+          <>
+            <h3>Accounts</h3>
+            <ul>
+              {accounts.map((a) => (
+                <li key={a.id}>
+                  Account #{a.id} → Balance: {a.balance}
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </Container>
+    </>
+  );
+};
+
+export default App;

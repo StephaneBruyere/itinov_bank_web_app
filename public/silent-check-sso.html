@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Silent Check SSO</title>
+  </head>
+  <body>
+    <script>
+      // Ce script est utilisé par Keycloak pour le check SSO silencieux
+      parent.postMessage(location.href, location.origin);
+    </script>
+  </body>
+</html>

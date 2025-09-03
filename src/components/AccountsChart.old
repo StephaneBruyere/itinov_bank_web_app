@@ -1,0 +1,112 @@
+import React, { useEffect, useState } from "react";
+import keycloak from "../keycloak";
+import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, CartesianGrid, ResponsiveContainer } from "recharts";
+
+interface Transaction {
+  id: number;
+  date: string;
+  amount: number;
+  type: string;
+  currency: string;
+  performedBy: string;
+  balanceAfter: number;
+}
+
+interface Account {
+  id: number;
+  number: string;
+  balance: number;
+  currency: string;
+  transactions: Transaction[];
+}
+
+// Format des données pour le graphique
+interface ChartDataPoint {
+  date: string; // ex: "2025-09-01"
+  [accountNumber: string]: number | string;
+}
+
+const AccountsChart: React.FC = () => {
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
+
+  useEffect(() => {
+    if (!keycloak.authenticated) return;
+
+    const fetchAccounts = async () => {
+      try {
+        const customerId: number = await fetch("/api/customer", {
+          headers: { Authorization: `Bearer ${keycloak.token}` },
+        }).then(res => res.json());
+
+        const accountsData: Account[] = await fetch(`/api/accounts/customer/${customerId}`, {
+          headers: { Authorization: `Bearer ${keycloak.token}` },
+        }).then(res => res.json());
+
+        setAccounts(accountsData);
+
+        prepareChartData(accountsData);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+
+    const prepareChartData = (accounts: Account[]) => {
+      const dataMap: Record<string, ChartDataPoint> = {};
+      const today = new Date();
+      const last30Days: string[] = [];
+
+      // Générer les 10 derniers jours
+      for (let i = 10; i >= 0; i--) {
+        const d = new Date(today);
+        d.setDate(d.getDate() - i);
+        const key = d.toISOString().split("T")[0]; // YYYY-MM-DD
+        last30Days.push(key);
+        dataMap[key] = { date: key };
+      }
+
+      accounts.forEach(account => {
+        account.transactions.forEach(tx => {
+          const txDate = tx.date.split("T")[0];
+          if (txDate in dataMap) {
+            // Additionner les montants pour chaque jour
+            const prev = (dataMap[txDate][account.number] as number) || 0;
+            dataMap[txDate][account.number] = prev + tx.amount;
+          }
+        });
+      });
+
+      setChartData(Object.values(dataMap));
+    };
+
+    fetchAccounts();
+  }, []);
+
+  if (!keycloak.authenticated) return null;
+
+  return (
+    <div>
+      <h3>Transactions for last the 10 days by account</h3>
+      <ResponsiveContainer width="100%" height={400}>
+        <LineChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="date" />
+          <YAxis />
+          <Tooltip />
+          <Legend />
+          {accounts.map((acc, idx) => (
+            <Line
+              key={acc.number}
+              type="monotone"
+              dataKey={acc.number}
+              stroke={["#8884d8", "#82ca9d", "#ff7300", "#ff0000", "#00aaff"][idx % 5]}
+              activeDot={{ r: 6 }}
+            />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+};
+
+export default AccountsChart;
