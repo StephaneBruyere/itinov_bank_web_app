@@ -3,7 +3,24 @@ import keycloak from "../keycloak";
 import { ToastContainer, Toast } from "react-bootstrap";
 import AccountItem from "./AccountItem";
 import AccountModal from "./AccountModal";
-import { Account, Transaction } from "./types";
+
+interface Transaction {
+  id: number;
+  date: string;
+  amount: number;
+  type: string;
+  currency: string;
+  performedBy: string;
+  balanceAfter: number;
+}
+
+interface Account {
+  id: number;
+  number: string;
+  balance: number;
+  currency: string;
+  transactions?: Transaction[];
+}
 
 type ActionType = "deposit" | "withdraw" | "transfer" | null;
 
@@ -23,9 +40,6 @@ const Accounts: React.FC = () => {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [toastVariant, setToastVariant] = useState<"success" | "danger">("success");
 
-  // --- Lazy load transactions ---
-const [loadingAccountId, setLoadingAccountId] = useState<number | null>(null);
-
   // --- Fetch accounts ---
   const fetchAccounts = useCallback(async () => {
     if (!keycloak.authenticated) return;
@@ -39,8 +53,7 @@ const [loadingAccountId, setLoadingAccountId] = useState<number | null>(null);
         { headers: { Authorization: `Bearer ${keycloak.token}` } }
       ).then((res) => res.json());
 
-      // Important : on garde transactions à undefined au départ
-      setAccounts(accountsData.map(acc => ({ ...acc, transactions: undefined })));
+      setAccounts(accountsData);
       setOverdrawnAccounts(accountsData.filter((acc) => acc.balance < 0));
     } catch (err) {
       console.error(err);
@@ -51,11 +64,9 @@ const [loadingAccountId, setLoadingAccountId] = useState<number | null>(null);
     fetchAccounts();
   }, [fetchAccounts]);
 
-  
-// --- Lazy load transactions ---
+  // --- Lazy load transactions ---
 const fetchTransactions = async (accountId: number) => {
-  setLoadingAccountId(accountId); // on démarre le spinner
-  try {    
+  try {
     const res = await fetch(`/api/accounts/${accountId}/transactions`, {
       headers: { Authorization: `Bearer ${keycloak.token}` },
     });
@@ -69,21 +80,18 @@ const fetchTransactions = async (accountId: number) => {
     );
   } catch (err) {
     console.error(err);
-  } finally {
-    // on attend au moins 300ms pour voir le spinner
-    setTimeout(() => setLoadingAccountId(null), 300);
   }
 };
 
 const toggleTransactions = (accountId: number) => {
   setOpenAccountId(prev => {
     if (prev === accountId) {
-      return null; // déjà ouvert -> on referme
+      // déjà ouvert -> on referme
+      return null;
     } else {
       // on ouvre -> lazy load si pas encore de transactions
       const acc = accounts.find(a => a.id === accountId);
-      //if (acc && (!acc.transactions || acc.transactions.length === 0)) {
-      if (acc && acc.transactions === undefined) {
+      if (acc && (!acc.transactions || acc.transactions.length === 0)) {
         fetchTransactions(accountId);
       }
       return accountId;
@@ -148,11 +156,7 @@ const toggleTransactions = (accountId: number) => {
 
       setToastMessage(`${actionType} successful!`);
       setToastVariant("success");
-
-      // close modal + reset open account
-      setShowModal(false);  
-      setOpenAccountId(null);
-
+      setShowModal(false);
       await fetchAccounts();
     } catch (err: unknown) {
       if (err instanceof Error) {
@@ -190,17 +194,13 @@ const toggleTransactions = (accountId: number) => {
           isOpen={openAccountId === account.id}
           toggleTransactions={toggleTransactions}
           openModal={openModal}
-          loadingTransactions={loadingAccountId === account.id} // le bon compte a son spinner
         />
       ))}
 
       {/* --- Modale --- */}
       <AccountModal
         show={showModal}
-        onHide={() => {
-          setShowModal(false);
-          setOpenAccountId(null); // 👈 force reset when closing modal
-    }}
+        onHide={() => setShowModal(false)}
         actionType={actionType}
         amount={amount}
         setAmount={setAmount}

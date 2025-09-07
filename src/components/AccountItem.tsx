@@ -1,24 +1,8 @@
 import React from "react";
 import { Button, Collapse } from "react-bootstrap";
+import { Spinner } from "react-bootstrap";
 import TransactionsTable from "./TransactionsTable";
-
-interface Transaction {
-  id: number;
-  date: string;
-  amount: number;
-  type: string;
-  currency: string;
-  performedBy: string;
-  balanceAfter: number;
-}
-
-interface Account {
-  id: number;
-  number: string;
-  balance: number;
-  currency: string;
-  transactions: Transaction[];
-}
+import { Account } from "./types";
 
 interface Props {
   account: Account;
@@ -26,9 +10,11 @@ interface Props {
   isOpen: boolean;
   toggleTransactions: (id: number) => void;
   openModal: (type: "deposit" | "withdraw" | "transfer", accountId: number) => void;
+  loadingTransactions?: boolean;
 }
 
-const AccountItem: React.FC<Props> = ({ account, isOpen, toggleTransactions, openModal }) => {
+const AccountItem: React.FC<Props> = ({ 
+  account, isOpen, toggleTransactions, openModal, loadingTransactions = false }) => {
   return (
     <div className="mb-4">
       <div className="my-4 border-top"></div>
@@ -51,7 +37,16 @@ const AccountItem: React.FC<Props> = ({ account, isOpen, toggleTransactions, ope
 
       <Collapse in={isOpen}>
         <div>
-          <TransactionsTable transactions={account.transactions} />
+          {
+          loadingTransactions ? (
+            <div className="text-center my-3">
+              <Spinner animation="border" />
+              <div>Loading transactions...</div>
+            </div>
+          ) : account.transactions ? (
+            <TransactionsTable transactions={account.transactions} />
+          ) : null
+          }
         </div>
       </Collapse>
     </div>

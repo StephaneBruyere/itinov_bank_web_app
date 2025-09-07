@@ -1,24 +1,7 @@
 import React, { useEffect, useState } from "react";
 import keycloak from "../keycloak";
 import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, CartesianGrid, ResponsiveContainer, ReferenceLine } from "recharts";
-
-interface Transaction {
-  id: number;
-  date: string;
-  amount: number;
-  type: string;
-  currency: string;
-  performedBy: string;
-  balanceAfter: number;
-}
-
-interface Account {
-  id: number;
-  number: string;
-  balance: number;
-  currency: string;
-  transactions: Transaction[];
-}
+import { Account } from "./types";
 
 interface ChartDataPoint {
   date: string;
@@ -72,7 +55,7 @@ const AccountsChart: React.FC = () => {
 
       accounts.forEach((account) => {
         // Trier transactions par date croissante
-        const sortedTx = [...account.transactions].sort(
+        const sortedTx = [...(account.transactions ?? [])].sort(
           (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
         );
 

@@ -1,15 +1,6 @@
 import React from "react";
 import { Table } from "react-bootstrap";
-
-interface Transaction {
-  id: number;
-  date: string;
-  amount: number;
-  type: string;
-  currency: string;
-  performedBy: string;
-  balanceAfter: number;
-}
+import { Transaction } from "./types";
 
 const TransactionsTable: React.FC<{ transactions: Transaction[] }> = ({ transactions }) => {
   return (
